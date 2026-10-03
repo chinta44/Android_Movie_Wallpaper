@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Android Movie Wallpaper</string>
+    <string name="wallpaper_description">端末内・SDカードの動画をホーム画面の背景として再生するライブ壁紙</string>
+    <string name="settings_title">動画壁紙の設定</string>
+</resources>
