@@ -25,50 +25,33 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          # 重要: cache: gradle は指定しない (エラー防止)
 
-      - name: 3. Gradleのセットアップ
+      - name: 3. Gradle 8.7 の自動セットアップ
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
 
-      - name: 4. Gradleラッパー実行権限の付与
-        run: |
-          if [ ! -f "./gradlew" ]; then
-            echo "gradlew が見つからないため生成します"
-            gradle wrapper --gradle-version 8.7
-          fi
-          chmod +x gradlew
+      - name: 4. APKの自動ビルド (assembleDebug)
+        run: gradle assembleDebug --stacktrace
 
-      - name: 5. APKの自動ビルド (assembleDebug)
-        run: ./gradlew assembleDebug --stacktrace
-
-      - name: 6. 生成されたAPKファイルの検索
+      - name: 5. 生成されたAPKファイルの検索
         id: apk_step
         run: |
           APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
           echo "Found APK at: $APK_FILE"
           echo "apk_path=$APK_FILE" >> $GITHUB_OUTPUT
 
-      - name: 7. GitHub Releases への自動公開
+      - name: 6. GitHub Releases への自動公開
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.apk_step.outputs.apk_path }}
           tag_name: ${{ github.ref_name || 'v1.0.0' }}
           name: "Android_Movie_Wallpaper ${{ github.ref_name || 'v1.0.0' }}"
           body: |
-            ### 📱 Android_Movie_Wallpaper APK (自動ビルド完了)
-            
-            Android Studioを使わずにGitHub Actionsにより自動コンパイルされたインストール用APKです。
-            
-            #### ⚙️ 機能
-            - 端末内部ストレージおよびSDカードの動画をホーム画面の動く壁紙に設定
-            - ホーム非表示時・別アプリ起動時に完全0mW休止するバッテリー省電力機構
-            - 30fps/24fps リミッター & 音声ミュート対応
-            - ダブルタップ一時停止
-            
-            #### 📥 インストール手順
-            1. 下の **Assets** にある `.apk` ファイルをスマホにダウンロード
-            2. 「提供元不明のアプリのインストールを許可」をONにしてインストール
-            3. アプリを起動し動画を選択して「壁紙に設定」をタップ
+            ### 📱 Android_Movie_Wallpaper APK (ビルド完了)
+            - 端末内・SDカード内動画対応 (SAF永続権限)
+            - 画面非表示時 0mW 休止 & 30fpsリミッター
+            - 画面ダブルタップで動画一時停止
           draft: false
           prerelease: false
         env:
