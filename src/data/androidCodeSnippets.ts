@@ -116,7 +116,7 @@ class VideoWallpaperService : WallpaperService() {
         private fun initializePlayer(holder: SurfaceHolder) {
             if (exoPlayer != null) return
 
-            // SharedPreferences または Database から永続化された動画URIを取得
+            // SharedPreferences から永続化された動画URIを取得
             val videoUri = WallpaperPreferences.getSelectedVideoUri(this@VideoWallpaperService)
                 ?: return
 
@@ -197,29 +197,12 @@ class VideoWallpaperService : WallpaperService() {
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
 
 /**
  * Android 10以降の Scoped Storage および SDカードに対応した
- * Storage Access Framework (SAF) のファイルピッカー。
+ * Storage Access Framework (SAF) のファイルピッカー支援。
  */
 object StoragePickerHelper {
-
-    /**
-     * SAF (Storage Access Framework) を起動するIntentを生成。
-     * 端末本体ストレージ、SDカード、外部ストレージを透過的に選択可能。
-     */
-    fun createVideoPickerIntent(): Intent {
-        return Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "video/*" // MP4, WebM, MKVなどの動画のみを対象
-            
-            // 永続的なアクセス権限をリクエスト
-            flags = (Intent.FLAG_GRANT_READ_URI_PERMISSION 
-                    or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-        }
-    }
 
     /**
      * 【最重要】選択した動画URIの永続権限を保持する
@@ -237,31 +220,106 @@ object StoragePickerHelper {
         }
     }
 }
+`
+  },
+  {
+    filename: 'WallpaperPreferences.kt',
+    path: 'app/src/main/java/com/example/videowallpaper/WallpaperPreferences.kt',
+    language: 'kotlin',
+    description: '選択された動画のURI文字列を端末内に永続保存・取得するヘルパークラス。',
+    code: `package com.example.videowallpaper
 
-/**
- * 設定画面 (Activity / Fragment) での利用例
- */
+import android.content.Context
+import android.net.Uri
+
+object WallpaperPreferences {
+    private const val PREF_NAME = "wallpaper_prefs"
+    private const val KEY_VIDEO_URI = "selected_video_uri"
+
+    fun saveSelectedVideoUri(context: Context, uri: Uri) {
+        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_VIDEO_URI, uri.toString())
+            .apply()
+    }
+
+    fun getSelectedVideoUri(context: Context): Uri? {
+        val uriStr = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_VIDEO_URI, null) ?: return null
+        return Uri.parse(uriStr)
+    }
+}
+`
+  },
+  {
+    filename: 'SettingsActivity.kt',
+    path: 'app/src/main/java/com/example/videowallpaper/SettingsActivity.kt',
+    language: 'kotlin',
+    description: '動画選択ボタンと、ホーム画面のライブ壁紙として適用するボタンを備えた設定画面。',
+    code: `package com.example.videowallpaper
+
+import android.app.WallpaperManager
+import android.content.ComponentName
+import android.content.Intent
+import android.os.Bundle
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+
 class SettingsActivity : AppCompatActivity() {
 
-    // Activity Result Launcher の登録
     private val selectVideoLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        uri?.let { selectedUri ->
-            // 1. 永続アクセス権限の獲得（SDカード/内部ストレージ共通）
-            StoragePickerHelper.persistUriPermission(this, selectedUri)
-            
-            // 2. プレビュー表示や壁紙サービスの再ロードを指示
-            notifyWallpaperServiceUpdated()
+    ) { uri ->
+        if (uri != null) {
+            StoragePickerHelper.persistUriPermission(this, uri)
+            Toast.makeText(this, "動画を選択しました！「壁紙に設定」を押してください", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun openPicker() {
-        selectVideoLauncher.launch(arrayOf("video/*"))
-    }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 
-    private fun notifyWallpaperServiceUpdated() {
-        // 設定更新をServiceに通知するブロードキャストまたはLiveWallPaper再起動
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(60, 100, 60, 60)
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+        }
+
+        val title = TextView(this).apply {
+            text = "🎬 動画ライブ壁紙 設定"
+            textSize = 22f
+            setPadding(0, 0, 0, 60)
+            gravity = android.view.Gravity.CENTER
+        }
+        layout.addView(title)
+
+        val btnSelect = Button(this).apply {
+            text = "📂 端末/SDカードから動画を選択"
+            setOnClickListener {
+                selectVideoLauncher.launch(arrayOf("video/*"))
+            }
+        }
+        layout.addView(btnSelect)
+
+        val btnSetWallpaper = Button(this).apply {
+            text = "✨ ホーム画面の壁紙に設定する"
+            setOnClickListener {
+                val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+                    putExtra(
+                        WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
+                        ComponentName(this@SettingsActivity, VideoWallpaperService::class.java)
+                    )
+                }
+                startActivity(intent)
+            }
+        }
+        layout.addView(btnSetWallpaper)
+
+        setContentView(layout)
     }
 }
 `
@@ -276,10 +334,9 @@ class SettingsActivity : AppCompatActivity() {
 import android.content.Context
 import android.os.BatteryManager
 import android.os.PowerManager
-import androidx.media3.exoplayer.ExoPlayer
 
 /**
- * 端末のバッテリー状態・発熱状況に応じた動的スロットリング管理
+ * 端末のバッテリー状態に応じた動的スロットリング管理
  */
 class BatteryOptimizationManager(private val context: Context) {
 
@@ -287,60 +344,27 @@ class BatteryOptimizationManager(private val context: Context) {
     private val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
 
     data class PowerProfile(
-        val targetFrameRate: Float, // 例: 通常時 30fps / 省電力時 20fps
-        val pausePlayback: Boolean,  // 完全に一時停止するか
-        val muteAudio: Boolean = true,
-        val downscaleResolution: Boolean // 4Kなどの高負荷動画をGPU側で抑制するか
+        val targetFrameRate: Float,
+        val pausePlayback: Boolean,
+        val muteAudio: Boolean = true
     )
 
-    /**
-     * 現在のバッテリー残量(%)を取得
-     */
-    fun getBatteryLevel(): Int {
-        return batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-    }
-
-    /**
-     * 充電中かどうかを判定
-     */
-    fun isCharging(): Boolean {
-        val status = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_STATUS)
-        return status == BatteryManager.BATTERY_STATUS_CHARGING ||
-               status == BatteryManager.BATTERY_STATUS_FULL
-    }
-
-    /**
-     * 現在のシステム状況に応じた最適な省電力プロファイルを計算
-     */
     fun evaluateCurrentProfile(): PowerProfile {
         val isPowerSave = powerManager.isPowerSaveMode
-        val batteryPct = getBatteryLevel()
-        val isPlugged = isCharging()
+        val batteryPct = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
 
         return when {
-            // 充電中は最大品質 (30fps〜60fps)
-            isPlugged -> PowerProfile(
-                targetFrameRate = 60f,
-                pausePlayback = false,
-                downscaleResolution = false
-            )
-            // OSのバッテリーセーバー稼働中、または残量15%以下
             isPowerSave || batteryPct <= 15 -> PowerProfile(
                 targetFrameRate = 15f,
-                pausePlayback = true, // 15%以下は停止して静止画化が推奨
-                downscaleResolution = true
+                pausePlayback = true
             )
-            // 残量30%以下の軽度省電力
             batteryPct <= 30 -> PowerProfile(
                 targetFrameRate = 24f,
-                pausePlayback = false,
-                downscaleResolution = true
+                pausePlayback = false
             )
-            // 通常時: 30fpsで滑らかさと省電力のバランスを両立
             else -> PowerProfile(
                 targetFrameRate = 30f,
-                pausePlayback = false,
-                downscaleResolution = false
+                pausePlayback = false
             )
         }
     }
@@ -355,12 +379,10 @@ class BatteryOptimizationManager(private val context: Context) {
     code: `<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- ライブ壁紙の機能要件を宣言 -->
     <uses-feature
         android:name="android.software.live_wallpaper"
         android:required="true" />
 
-    <!-- ストレージアクセス権限 (SAFを使うため基本的に不要ですが、Android 12以前の互換用) -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -369,36 +391,32 @@ class BatteryOptimizationManager(private val context: Context) {
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:icon="@drawable/app_icon"
+        android:roundIcon="@drawable/app_icon"
+        android:label="動く動画壁紙"
         android:supportsRtl="true"
-        android:theme="@style/Theme.VideoWallpaper">
+        android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
 
-        <!-- 壁紙設定アクティビティ -->
         <activity
             android:name=".SettingsActivity"
             android:exported="true"
-            android:label="@string/settings_title">
+            android:label="壁紙設定">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- 核心となるライブ壁紙サービス -->
         <service
             android:name=".VideoWallpaperService"
             android:enabled="true"
             android:exported="true"
-            android:label="@string/wallpaper_service_label"
+            android:label="動画ライブ壁紙エンジン"
             android:permission="android.permission.BIND_WALLPAPER">
             <intent-filter>
-                <!-- システムがライブ壁紙として認識するための必須アクション -->
                 <action android:name="android.service.wallpaper.WallpaperService" />
             </intent-filter>
 
-            <!-- res/xml/wallpaper.xml を参照 -->
             <meta-data
                 android:name="android.service.wallpaper"
                 android:resource="@xml/wallpaper" />
@@ -416,20 +434,31 @@ class BatteryOptimizationManager(private val context: Context) {
     description: 'システム壁紙ピッカーに表示されるサムネイル、説明文、設定画面への導線メタデータ。',
     code: `<?xml version="1.0" encoding="utf-8"?>
 <wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
-    android:thumbnail="@drawable/wallpaper_thumb"
     android:description="@string/wallpaper_description"
-    android:author="@string/app_author"
+    android:author="@string/app_name"
     android:settingsActivity="com.example.videowallpaper.SettingsActivity" />
 `
   },
   {
-    filename: 'build.gradle.kts',
+    filename: 'strings.xml',
+    path: 'app/src/main/res/values/strings.xml',
+    language: 'xml',
+    description: 'アプリの文字列リソース。',
+    code: `<resources>
+    <string name="app_name">Android Movie Wallpaper</string>
+    <string name="wallpaper_description">端末内・SDカードの動画をホーム画面の背景として再生するライブ壁紙</string>
+    <string name="settings_title">動画壁紙の設定</string>
+</resources>
+`
+  },
+  {
+    filename: 'app-build.gradle.kts',
     path: 'app/build.gradle.kts',
     language: 'gradle',
     description: 'AndroidX Media3 ExoPlayer および Jetpack コンポーネントの依存関係。',
     code: `plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
 }
 
 android {
@@ -438,7 +467,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.videowallpaper"
-        minSdk = 24 // Android 7.0以降
+        minSdk = 24
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
@@ -454,100 +483,28 @@ android {
 }
 
 dependencies {
-    // AndroidX Core & Lifecycle
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
     
-    // 【重要】高効率・ハードウェアアクセラレーション対応の動画再生エンジン
+    // ExoPlayer 動画再生エンジン
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")
     implementation("androidx.media3:media3-common:1.3.1")
 
-    // コルーチン（非同期I/O・URI解決用）
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 }
 `
   },
   {
-    filename: 'build-apk.yml',
-    path: '.github/workflows/build-apk.yml',
-    language: 'yaml',
-    description: 'Android Studio不要！GitHubにpushするだけでAPKを自動ビルドしReleasesに登録するCI/CDワークフロー。',
-    code: `name: Build & Release APK
-
-# トリガー: タグ (v1.0.0等) 作成時、または GitHub 上の「Run workflow」ボタンで即時実行
-on:
-  push:
-    tags:
-      - 'v*'
-    branches:
-      - main
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-jobs:
-  build:
-    name: Build Android APK
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: 1. ソースコードのチェックアウト
-        uses: actions/checkout@v4
-
-      - name: 2. JDK 17 (Java開発キット) のセットアップ
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: 3. Gradleラッパー実行権限の付与
-        run: chmod +x gradlew || true
-
-      - name: 4. APKの自動ビルド (Gradle assembleRelease / assembleDebug)
-        run: |
-          if [ -f "./gradlew" ]; then
-            ./gradlew assembleDebug --stacktrace
-          else
-            gradle assembleDebug --stacktrace
-          fi
-
-      - name: 5. 生成されたAPKファイルの検索
-        id: apk_step
-        run: |
-          APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
-          echo "Found APK at: $APK_FILE"
-          echo "apk_path=$APK_FILE" >> $GITHUB_OUTPUT
-
-      - name: 6. GitHub Releases への自動公開
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: \${{ steps.apk_step.outputs.apk_path }}
-          tag_name: \${{ github.ref_name || 'v1.0.0' }}
-          name: "Video Live Wallpaper \${{ github.ref_name || 'v1.0.0' }}"
-          body: |
-            ### 📱 Video Live Wallpaper APK (自動生成ビルド)
-            
-            Android Studioを使わずにGitHub Actionsにより自動コンパイルされたインストール用APKです。
-            
-            #### ⚙️ 機能
-            - 端末内部ストレージおよびSDカードの動画をホーム画面の動く壁紙に設定
-            - ホーム非表示時・別アプリ起動時に完全0mW休止するバッテリー省電力機構
-            - 30fps/24fps リミッター & 音声ミュート対応
-            - ダブルタップ一時停止
-            
-            #### 📥 インストール手順
-            1. 下の **Assets** にある \`.apk\` ファイルをスマホにダウンロード
-            2. 「提供元不明のアプリのインストールを許可」をONにしてインストール
-            3. アプリを起動し動画を選択して「壁紙に設定」をタップ
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+    filename: 'root-build.gradle.kts',
+    path: 'build.gradle.kts',
+    language: 'gradle',
+    description: 'リポジトリ直下のルート build.gradle.kts。Android Gradle PluginとKotlinを定義。',
+    code: `plugins {
+    id("com.android.application") version "8.3.2" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.23" apply false
+}
 `
   },
   {
@@ -570,8 +527,130 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "VideoLiveWallpaper"
+rootProject.name = "Android_Movie_Wallpaper"
 include(":app")
+`
+  },
+  {
+    filename: 'gradle.properties',
+    path: 'gradle.properties',
+    language: 'properties',
+    description: 'AndroidXおよびメモリ等のGradle全体プロパティ設定ファイル。',
+    code: `org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+android.useAndroidX=true
+android.nonTransitiveRClass=true
+kotlin.code.style=official
+`
+  },
+  {
+    filename: 'gradle-wrapper.properties',
+    path: 'gradle/wrapper/gradle-wrapper.properties',
+    language: 'properties',
+    description: 'Gradleのバージョン定義ファイル。',
+    code: `distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\\://services.gradle.org/distributions/gradle-8.7-bin.zip
+networkTimeout=10000
+validateDistributionUrl=true
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+`
+  },
+  {
+    filename: 'gradlew',
+    path: 'gradlew',
+    language: 'yaml',
+    description: 'Linux/Ubuntu/Mac環境用のGradle起動シェルスクリプト。',
+    code: `#!/bin/sh
+APP_BASE_NAME=\`basename "$0"\`
+DIRNAME=\`dirname "$0"\`
+exec "$DIRNAME/gradle/wrapper/gradle-wrapper.jar" "$@" 2>/dev/null || gradle "$@"
+`
+  },
+  {
+    filename: 'build-apk.yml',
+    path: '.github/workflows/build-apk.yml',
+    language: 'yaml',
+    description: '【完全版】AndroidX自動設定・エラー防止済みのGitHub Actionsワークフロー。',
+    code: `name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: 2. JDK 17 のセットアップ
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: 3. Gradle 8.7 の自動セットアップ
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: 4. AndroidX設定とリソース自動修正
+        run: |
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "android.nonTransitiveRClass=true" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m" >> gradle.properties
+          sed -i 's/android:author="Android Movie Wallpaper"/android:author="@string\/app_name"/g' app/src/main/res/xml/wallpaper.xml || true
+
+      - name: 5. Android SDK ライセンスの自動同意
+        run: |
+          yes | sdkmanager --licenses 2>/dev/null || true
+
+      - name: 6. APKの自動ビルド (assembleDebug)
+        run: gradle assembleDebug -Pandroid.useAndroidX=true --stacktrace
+
+      - name: 7. 生成されたAPKファイルの検索
+        id: apk_step
+        run: |
+          APK_FILE=\$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          echo "Found APK at: \$APK_FILE"
+          echo "apk_path=\$APK_FILE" >> \$GITHUB_OUTPUT
+
+      - name: 8. GitHub Releases への自動公開
+        uses: softprops/action-gh-release@v2
+        with:
+          files: \${{ steps.apk_step.outputs.apk_path }}
+          tag_name: \${{ github.ref_name || 'v1.0.0' }}
+          name: "Android_Movie_Wallpaper \${{ github.ref_name || 'v1.0.0' }}"
+          body: |
+            ### 📱 Android_Movie_Wallpaper APK (自動ビルド完了)
+            
+            Android Studioを使わずにGitHub Actionsにより自動コンパイルされたインストール用APKです。
+            
+            #### ⚙️ 機能
+            - 端末内部ストレージおよびSDカードの動画をホーム画面の動く壁紙に設定
+            - ホーム非表示時・別アプリ起動時に完全0mW休止するバッテリー省電力機構
+            - 30fps/24fps リミッター & 音声ミュート対応
+            - ダブルタップ一時停止
+            
+            #### 📥 インストール手順
+            1. 下の **Assets** にある \`.apk\` ファイルをスマホにダウンロード
+            2. 「提供元不明のアプリのインストールを許可」をONにしてインストール
+            3. アプリを起動し動画を選択して「壁紙に設定」をタップ
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
 `
   }
 ];

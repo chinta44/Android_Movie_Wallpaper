@@ -3,26 +3,26 @@ import {
   Wifi, 
   Battery, 
   BatteryCharging, 
-  BatteryLow, 
   Signal, 
   Search, 
-  Mic, 
   Camera, 
   Phone, 
   MessageSquare, 
-  Compass, 
   Image as ImageIcon, 
   Youtube, 
-  Folder, 
   Settings as SettingsIcon,
   X, 
   Pause, 
   Play, 
   VolumeX, 
   Volume2, 
-  Zap, 
-  AlertCircle,
-  EyeOff
+  Sparkles,
+  Heart,
+  Eye,
+  EyeOff,
+  Moon,
+  Clock,
+  Music
 } from 'lucide-react';
 import { SimulatorState } from '../types/wallpaper';
 
@@ -47,9 +47,11 @@ export const PhoneSimulator: React.FC<PhoneSimulatorProps> = ({
   const [currentTime, setCurrentTime] = useState('09:41');
   const [currentDate, setCurrentDate] = useState('10月3日 (土)');
   const [lastTapTime, setLastTapTime] = useState(0);
-  const [showTapHint, setShowTapHint] = useState(false);
+  const [showHeartPopup, setShowHeartPopup] = useState(false);
+  const [heartMessage, setHeartMessage] = useState('一時停止');
+  const [isLockScreen, setIsLockScreen] = useState(false);
 
-  // Sync clock with real time
+  // Sync clock
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
@@ -68,30 +70,27 @@ export const PhoneSimulator: React.FC<PhoneSimulatorProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Control video play/pause based on lifecycle states (onVisibilityChanged, screen off, app obscuring)
+  // Video play/pause logic
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const shouldPlay = state.isPlaying && !state.isAppObscuring && !state.isScreenOff && (!state.isBatterySaver || !state.autoPauseOnLowBattery);
-
+    const shouldPlay = state.isPlaying && !state.isAppObscuring && !state.isScreenOff;
     if (shouldPlay) {
-      video.play().catch(() => {
-        // Autoplay may be blocked if unmuted or error
-      });
+      video.play().catch(() => {});
     } else {
       video.pause();
     }
-  }, [state.isPlaying, state.isAppObscuring, state.isScreenOff, state.isBatterySaver, state.autoPauseOnLowBattery]);
+  }, [state.isPlaying, state.isAppObscuring, state.isScreenOff]);
 
-  // Handle Mute
+  // Mute logic
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.muted = state.isMuted;
     }
   }, [state.isMuted]);
 
-  // Handle Fallback Canvas Animation when video cannot load or offline
+  // Fallback canvas drawing (aesthetic pastel starry animation)
   useEffect(() => {
     if (!videoError) return;
     const canvas = canvasRef.current;
@@ -100,40 +99,34 @@ export const PhoneSimulator: React.FC<PhoneSimulatorProps> = ({
     if (!ctx) return;
 
     let animId: number;
-    let frame = 0;
+    let t = 0;
 
     const render = () => {
-      if (state.isScreenOff || state.isAppObscuring || !state.isPlaying) {
+      if (!state.isPlaying || state.isAppObscuring || state.isScreenOff) {
         animId = requestAnimationFrame(render);
         return;
       }
-      frame++;
+      t += 0.02;
       const w = canvas.width;
       const h = canvas.height;
 
-      // Draw aesthetic procedural animated wallpaper
-      ctx.fillStyle = '#090d16';
-      ctx.fillRect(0, 0, w, h);
-
-      // Gradient waves
-      const grad = ctx.createLinearGradient(0, 0, w, h);
-      grad.addColorStop(0, '#1e1b4b');
-      grad.addColorStop(0.5, '#311042');
-      grad.addColorStop(1, '#0f172a');
+      // Romantic twilight pastel gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, '#fbcfe8'); // rose-200
+      grad.addColorStop(0.4, '#e9d5ff'); // purple-200
+      grad.addColorStop(0.7, '#fed7aa'); // orange-200
+      grad.addColorStop(1, '#fde68a'); // amber-200
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
-      // Cyber glowing orbs
-      for (let i = 0; i < 3; i++) {
-        const cx = w * 0.5 + Math.sin(frame * 0.02 + i * 2) * (w * 0.3);
-        const cy = h * 0.4 + Math.cos(frame * 0.015 + i * 2) * (h * 0.25);
-        const rad = 140 + Math.sin(frame * 0.03 + i) * 30;
-        const orbGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, rad);
-        orbGrad.addColorStop(0, i === 0 ? 'rgba(99, 102, 241, 0.4)' : i === 1 ? 'rgba(236, 72, 153, 0.35)' : 'rgba(16, 185, 129, 0.3)');
-        orbGrad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = orbGrad;
+      // Stars / sparkles
+      for (let i = 0; i < 25; i++) {
+        const x = (Math.sin(i * 99 + t * 0.5) * 0.5 + 0.5) * w;
+        const y = (Math.cos(i * 33 + t * 0.3) * 0.5 + 0.5) * h;
+        const r = Math.sin(t * 2 + i) * 1.5 + 2;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         ctx.beginPath();
-        ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+        ctx.arc(x, y, Math.max(0.5, r), 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -144,295 +137,327 @@ export const PhoneSimulator: React.FC<PhoneSimulatorProps> = ({
     return () => cancelAnimationFrame(animId);
   }, [videoError, state.isPlaying, state.isAppObscuring, state.isScreenOff]);
 
+  // Handle double tap
   const handleScreenClick = () => {
-    if (!state.enableDoubleTapPause) return;
     const now = Date.now();
     if (now - lastTapTime < 350) {
-      // Double tap detected!
+      // Double tap detected
       onDoubleTap();
-      setShowTapHint(true);
-      setTimeout(() => setShowTapHint(false), 1200);
+      setHeartMessage(state.isPlaying ? 'トントン 一時停止 ⏸️' : 'トントン 再開 💖');
+      setShowHeartPopup(true);
+      setTimeout(() => setShowHeartPopup(false), 1200);
       setLastTapTime(0);
     } else {
       setLastTapTime(now);
     }
   };
 
-  const isActuallyRunning = state.isPlaying && !state.isAppObscuring && !state.isScreenOff && !(state.isBatterySaver && state.autoPauseOnLowBattery);
-
   return (
-    <div className="relative flex flex-col items-center">
-      {/* Phone Hardware Mockup */}
-      <div className="relative w-[340px] sm:w-[370px] h-[720px] bg-slate-900 rounded-[52px] p-3 shadow-2xl shadow-indigo-950/40 border-[7px] border-slate-800 ring-1 ring-white/10 select-none overflow-hidden transition-all">
+    <div className="flex flex-col items-center select-none">
+      {/* Phone Body Frame */}
+      <div className="relative w-[300px] sm:w-[320px] h-[620px] sm:h-[650px] bg-stone-900 rounded-[50px] p-[10px] shadow-2xl shadow-rose-200/50 border-[4px] border-rose-100/80 ring-1 ring-stone-900/10">
         
-        {/* Antenna bands / subtle metallic sheen */}
-        <div className="absolute top-16 -left-[7px] w-[3px] h-10 bg-slate-700/60 rounded-r" />
-        <div className="absolute top-32 -right-[7px] w-[3px] h-14 bg-slate-700/60 rounded-l" />
-        <div className="absolute top-52 -right-[7px] w-[3px] h-14 bg-slate-700/60 rounded-l" />
+        {/* Dynamic Island / Speaker Notch */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-28 h-6 bg-stone-900 rounded-full z-40 flex items-center justify-between px-3 border border-stone-800">
+          <div className="w-2.5 h-2.5 rounded-full bg-stone-950 border border-stone-800"></div>
+          <div className="w-2 h-2 rounded-full bg-rose-500/80 animate-pulse"></div>
+        </div>
 
-        {/* Screen Bezel Container */}
+        {/* Screen Bezel inner */}
         <div 
           onClick={handleScreenClick}
-          className="relative w-full h-full bg-black rounded-[42px] overflow-hidden flex flex-col justify-between cursor-pointer"
+          className="relative w-full h-full rounded-[40px] overflow-hidden bg-stone-950 cursor-pointer"
         >
-          {/* CAMERA PUNCH HOLE */}
-          <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-40 w-4 h-4 rounded-full bg-slate-950 border border-slate-800/80 flex items-center justify-center">
-            <div className="w-1.5 h-1.5 rounded-full bg-slate-900/90 ring-1 ring-blue-900/30" />
+          {/* Wallpaper Video Layer */}
+          <div className="absolute inset-0 z-0">
+            <video
+              ref={videoRef}
+              src={state.currentVideoUrl}
+              loop
+              playsInline
+              muted={state.isMuted}
+              poster="/wallpaper-preview.jpg"
+              onError={() => setVideoError(true)}
+              onLoadedData={() => setVideoError(false)}
+              className={`w-full h-full object-cover transition-transform duration-700 ${
+                state.scaleMode === 'contain' ? 'object-contain' : 'object-cover'
+              }`}
+            />
+            {videoError && (
+              <canvas
+                ref={canvasRef}
+                width={320}
+                height={650}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            )}
           </div>
 
-          {/* STATUS BAR */}
-          <div className="relative z-30 flex items-center justify-between px-6 pt-3 pb-1 text-[11px] font-medium tracking-tight text-white/90">
-            <span className="font-semibold">{currentTime}</span>
+          {/* Double Tap Heart Feedback Overlay */}
+          {showHeartPopup && (
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/30 backdrop-blur-xs animate-in fade-in zoom-in duration-200">
+              <div className="p-4 rounded-3xl bg-white/95 text-stone-800 shadow-xl flex flex-col items-center gap-2 border border-rose-100">
+                <Heart className="w-10 h-10 fill-rose-500 text-rose-500 animate-bounce" />
+                <span className="text-xs font-bold text-rose-600">{heartMessage}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Status Bar */}
+          <div className="relative z-20 flex items-center justify-between px-6 pt-3 text-white text-[11px] font-medium drop-shadow-md">
+            <span>{currentTime}</span>
             <div className="flex items-center gap-1.5">
-              {state.isBatterySaver && (
-                <span className="flex items-center text-amber-400 font-semibold text-[10px] bg-amber-500/20 px-1 rounded">
-                  <Zap className="w-2.5 h-2.5 mr-0.5 fill-amber-400" />
-                  省電力
-                </span>
-              )}
-              <Signal className="w-3.5 h-3.5" />
-              <Wifi className="w-3.5 h-3.5" />
+              <Signal className="w-3 h-3" />
+              <Wifi className="w-3 h-3" />
               <div className="flex items-center gap-0.5">
-                <span className="text-[10px]">{state.batteryLevel}%</span>
-                {state.batteryLevel <= 20 ? (
-                  <BatteryLow className="w-3.5 h-3.5 text-red-400 fill-red-400" />
+                <span>{state.batteryLevel}%</span>
+                {state.isBatterySaver ? (
+                  <BatteryCharging className="w-3.5 h-3.5 text-amber-300" />
                 ) : (
-                  <Battery className="w-3.5 h-3.5 text-white/90" />
+                  <Battery className="w-3.5 h-3.5" />
                 )}
               </div>
             </div>
           </div>
 
-          {/* BACKGROUND VIDEO WALLPAPER (WallpaperService.Engine surface) */}
-          <div className="absolute inset-0 z-0 overflow-hidden bg-slate-950">
-            {!videoError ? (
-              <video
-                ref={videoRef}
-                src={state.currentVideoUrl}
-                loop
-                playsInline
-                muted={state.isMuted}
-                onError={() => setVideoError(true)}
-                onLoadedData={() => setVideoError(false)}
-                className={`w-full h-full object-${state.scaleMode} transition-opacity duration-300 ${
-                  state.isScreenOff ? 'opacity-0' : 'opacity-100'
-                }`}
-              />
-            ) : (
-              <canvas
-                ref={canvasRef}
-                width={360}
-                height={720}
-                className="w-full h-full object-cover"
-              />
-            )}
-
-            {/* Video overlay shade for readability of Android widgets */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none" />
-          </div>
-
-          {/* HOME SCREEN CONTENT (WIDGETS & ICONS) */}
-          <div className={`relative z-10 flex flex-col justify-between h-full pt-1 pb-3 px-4 transition-all duration-300 ${
-            state.isScreenOff ? 'opacity-0' : 'opacity-100'
-          }`}>
-            
-            {/* Top Widgets: Clock & Date */}
-            <div className="mt-4 text-center">
-              <div className="text-5xl font-light tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
-                {currentTime}
-              </div>
-              <div className="text-xs font-medium text-white/90 mt-1 drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
-                {currentDate}
-              </div>
-            </div>
-
-            {/* Google Search Bar Widget */}
-            <div className="mt-4 mx-1 px-4 py-2.5 rounded-full bg-slate-900/60 backdrop-blur-md border border-white/15 flex items-center justify-between shadow-lg">
-              <div className="flex items-center gap-2 text-white/80">
-                <Search className="w-4 h-4 text-white/70" />
-                <span className="text-xs text-white/60">Googleで検索</span>
-              </div>
-              <div className="flex items-center gap-2.5 text-white/80">
-                <Mic className="w-3.5 h-3.5 hover:text-white" />
-                <Camera className="w-3.5 h-3.5 hover:text-white" />
-              </div>
-            </div>
-
-            {/* Tap Hint Toast Notification */}
-            {showTapHint && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-black/85 backdrop-blur-md border border-white/20 text-white text-xs font-medium animate-fade-in shadow-xl flex items-center gap-1.5">
-                {state.isPlaying ? <Play className="w-3.5 h-3.5 text-emerald-400" /> : <Pause className="w-3.5 h-3.5 text-amber-400" />}
-                <span>{state.isPlaying ? '再生中 (ダブルタップ)' : '一時停止中 (ダブルタップ)'}</span>
-              </div>
-            )}
-
-            {/* App Grid */}
-            <div className="mt-auto mb-4 grid grid-cols-4 gap-y-4 gap-x-2 text-center">
-              <button 
-                onClick={(e) => { e.stopPropagation(); onToggleAppObscure(true); }}
-                className="flex flex-col items-center gap-1 group active:scale-95 transition-transform"
-                title="タップしてアプリ起動 (onVisibilityChanged検証)"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-red-600 to-red-500 shadow-md flex items-center justify-center text-white ring-1 ring-white/20 group-hover:ring-white/40">
-                  <Youtube className="w-6 h-6" />
+          {/* LOCKSCREEN MODE */}
+          {isLockScreen && !state.isAppObscuring && !state.isScreenOff && (
+            <div className="relative z-10 h-[calc(100%-40px)] flex flex-col justify-between p-6 text-white text-center">
+              <div className="pt-10 space-y-1">
+                <div className="text-xs font-medium tracking-wide text-white/90 drop-shadow">
+                  {currentDate}
                 </div>
-                <span className="text-[10px] text-white/95 font-medium drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] truncate w-full">
-                  YouTube
-                </span>
-              </button>
-
-              <button 
-                onClick={(e) => { e.stopPropagation(); onToggleAppObscure(true); }}
-                className="flex flex-col items-center gap-1 group active:scale-95 transition-transform"
-                title="タップしてChrome起動 (onVisibilityChanged検証)"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 shadow-md flex items-center justify-center text-white ring-1 ring-white/20 group-hover:ring-white/40">
-                  <Compass className="w-6 h-6" />
+                <div className="text-6xl font-light tracking-tight drop-shadow-lg font-sans">
+                  {currentTime}
                 </div>
-                <span className="text-[10px] text-white/95 font-medium drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] truncate w-full">
-                  Chrome
-                </span>
-              </button>
-
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-pink-500 shadow-md flex items-center justify-center text-white ring-1 ring-white/20">
-                  <ImageIcon className="w-6 h-6" />
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] mt-2 drop-shadow">
+                  <Sparkles className="w-3 h-3 text-amber-200" />
+                  <span>今日も素敵な一日に ✨</span>
                 </div>
-                <span className="text-[10px] text-white/95 font-medium drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] truncate w-full">
-                  ギャラリー
-                </span>
               </div>
 
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 shadow-md flex items-center justify-center text-white ring-1 ring-white/20">
-                  <Folder className="w-6 h-6" />
-                </div>
-                <span className="text-[10px] text-white/95 font-medium drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] truncate w-full">
-                  ファイル
-                </span>
-              </div>
-            </div>
-
-            {/* Bottom App Dock */}
-            <div className="pt-2 border-t border-white/10 flex items-center justify-around px-2">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-500 shadow-md flex items-center justify-center text-white ring-1 ring-white/20">
-                <Phone className="w-5 h-5" />
-              </div>
-              <div className="w-11 h-11 rounded-2xl bg-blue-500 shadow-md flex items-center justify-center text-white ring-1 ring-white/20">
-                <MessageSquare className="w-5 h-5" />
-              </div>
-              <div className="w-11 h-11 rounded-2xl bg-indigo-600 shadow-md flex items-center justify-center text-white ring-1 ring-white/20">
-                <Compass className="w-5 h-5" />
-              </div>
-              <div className="w-11 h-11 rounded-2xl bg-rose-500 shadow-md flex items-center justify-center text-white ring-1 ring-white/20">
-                <Camera className="w-5 h-5" />
-              </div>
-            </div>
-
-            {/* Gesture Navigation Bar */}
-            <div className="pt-2 flex justify-center">
-              <div className="w-24 h-1 bg-white/70 rounded-full" />
-            </div>
-          </div>
-
-          {/* SIMULATED OPEN APP OVERLAY (Triggered when user opens YouTube or other app) */}
-          {state.isAppObscuring && (
-            <div 
-              onClick={(e) => e.stopPropagation()}
-              className="absolute inset-0 z-50 bg-slate-900 text-slate-100 flex flex-col animate-slide-up"
-            >
-              {/* Fake App Header */}
-              <div className="pt-8 px-4 pb-3 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded bg-red-600 flex items-center justify-center text-white">
-                    <Youtube className="w-4 h-4" />
+              {/* Music Widget */}
+              <div className="bg-white/20 backdrop-blur-md rounded-2xl p-3 border border-white/20 text-left shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-rose-400/80 flex items-center justify-center shrink-0 shadow-sm">
+                    <Music className="w-4 h-4 text-white" />
                   </div>
-                  <span className="font-semibold text-sm">YouTube (別アプリが起動中)</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold truncate">Aesthetic Twilight BGM</div>
+                    <div className="text-[10px] text-white/70">動く壁紙 再生中</div>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                </div>
+              </div>
+
+              <div className="text-[10px] text-white/70 pb-2">
+                ↑ スワイプしてロック解除
+              </div>
+            </div>
+          )}
+
+          {/* HOMESCREEN MODE */}
+          {!isLockScreen && !state.isAppObscuring && !state.isScreenOff && (
+            <div className="relative z-10 h-[calc(100%-40px)] flex flex-col justify-between p-4 text-white">
+              {/* Cute Weather / Date Widget */}
+              <div className="pt-2 px-1">
+                <div className="bg-white/25 backdrop-blur-md rounded-2xl p-3.5 border border-white/20 shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-[11px] text-white/80 font-medium">{currentDate}</div>
+                      <div className="text-2xl font-bold tracking-tight">{currentTime}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xl">🌸 22°C</div>
+                      <div className="text-[10px] text-white/80">晴れ・心地よい風</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cute App Grid */}
+              <div className="grid grid-cols-4 gap-y-4 gap-x-2 px-2 text-center">
+                {/* Our App with Cute Icon */}
+                <div className="flex flex-col items-center gap-1 group">
+                  <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-lg border-2 border-white/60 bg-white transform group-hover:scale-105 transition">
+                    <img src="/app-icon.jpg" alt="動く壁紙" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                  <span className="text-[10px] font-medium text-white drop-shadow truncate w-full">動画壁紙</span>
+                </div>
+
+                {/* Instagram */}
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 flex items-center justify-center text-white shadow-lg border border-white/30">
+                    <Camera className="w-6 h-6" />
+                  </div>
+                  <span className="text-[10px] font-medium text-white drop-shadow">Instagram</span>
+                </div>
+
+                {/* LINE / Chat */}
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-lg border border-white/30">
+                    <MessageSquare className="w-6 h-6" />
+                  </div>
+                  <span className="text-[10px] font-medium text-white drop-shadow">LINE</span>
+                </div>
+
+                {/* Photos */}
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-400 to-amber-300 flex items-center justify-center text-white shadow-lg border border-white/30">
+                    <ImageIcon className="w-6 h-6" />
+                  </div>
+                  <span className="text-[10px] font-medium text-white drop-shadow">写真</span>
+                </div>
+
+                {/* YouTube */}
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-12 h-12 rounded-2xl bg-red-600 flex items-center justify-center text-white shadow-lg border border-white/30">
+                    <Youtube className="w-6 h-6" />
+                  </div>
+                  <span className="text-[10px] font-medium text-white drop-shadow">YouTube</span>
+                </div>
+
+                {/* Settings */}
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-12 h-12 rounded-2xl bg-stone-700/80 backdrop-blur-md flex items-center justify-center text-white shadow-lg border border-white/30">
+                    <SettingsIcon className="w-6 h-6" />
+                  </div>
+                  <span className="text-[10px] font-medium text-white drop-shadow">設定</span>
+                </div>
+              </div>
+
+              {/* Bottom Dock Bar */}
+              <div className="bg-white/30 backdrop-blur-lg rounded-3xl p-2.5 mx-1 border border-white/30 flex items-center justify-around shadow-xl">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-sm">
+                  <Phone className="w-5 h-5" />
+                </div>
+                <div className="w-11 h-11 rounded-2xl bg-rose-400 flex items-center justify-center text-white shadow-sm">
+                  <Heart className="w-5 h-5" />
+                </div>
+                <div className="w-11 h-11 rounded-2xl bg-sky-500 flex items-center justify-center text-white shadow-sm">
+                  <Search className="w-5 h-5" />
+                </div>
+                <div className="w-11 h-11 rounded-2xl bg-stone-800 flex items-center justify-center text-white shadow-sm">
+                  <Camera className="w-5 h-5" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* FOREGROUND APP SIMULATION (0mW PAUSE PROOF) */}
+          {state.isAppObscuring && (
+            <div className="absolute inset-0 z-30 bg-white flex flex-col justify-between animate-in fade-in duration-300">
+              {/* App Topbar */}
+              <div className="p-4 border-b border-stone-100 flex items-center justify-between pt-10">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-rose-400 flex items-center justify-center text-white text-xs font-bold">
+                    S
+                  </div>
+                  <span className="font-bold text-xs text-stone-800">SNSアプリを開き中</span>
                 </div>
                 <button
                   onClick={() => onToggleAppObscure(false)}
-                  className="p-1 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white"
-                  title="ホームに戻る"
+                  className="p-1.5 rounded-full hover:bg-stone-100 text-stone-500"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* App Content & Explanation */}
-              <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs text-slate-300">
-                <div className="p-3 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-200">
-                  <div className="font-semibold flex items-center gap-1.5 text-emerald-300 text-xs mb-1">
-                    <Zap className="w-3.5 h-3.5" />
-                    onVisibilityChanged(false) が正常に発火！
-                  </div>
-                  ホーム画面が完全に覆われたため、バックグラウンドの動画デコーダーは直ちに一時停止されました。CPU/GPU消費は<strong>0 mW</strong>です。
+              {/* App Content */}
+              <div className="p-4 space-y-3 flex-1 flex flex-col items-center justify-center text-center">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
+                  <BatteryCharging className="w-7 h-7" />
                 </div>
-
-                <div className="p-3 rounded-lg bg-slate-800 border border-slate-700 space-y-2">
-                  <div className="text-[11px] font-semibold text-slate-200">OS内部の動作状況:</div>
-                  <div className="font-mono text-[10px] text-slate-400 bg-slate-950 p-2 rounded border border-slate-800">
-                    VideoWallpaperService: onVisibilityChanged(false)<br/>
-                    └─ ExoPlayer.pause()<br/>
-                    └─ MediaCodec: RELEASE_BUFFERS<br/>
-                    └─ Power Drain: 0.0 mA (省電力状態)
-                  </div>
+                <div className="font-bold text-sm text-stone-800">
+                  壁紙動画はピタッと完全停止中！
                 </div>
-
-                <div className="text-center pt-4">
-                  <button
-                    onClick={() => onToggleAppObscure(false)}
-                    className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-medium text-xs shadow-lg transition-colors"
-                  >
-                    ホーム画面に戻る（動画再生を再開）
-                  </button>
+                <p className="text-xs text-stone-500 max-w-[220px] leading-relaxed">
+                  別のアプリを使っている間は、動画再生が0mW休止し、バッテリー消費が完全にゼロになります。
+                </p>
+                <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                  <span>電力消費: 0.0 mW (安全)</span>
                 </div>
               </div>
 
-              {/* Gesture bar */}
-              <div className="pb-2 flex justify-center bg-slate-900">
-                <div className="w-24 h-1 bg-white/40 rounded-full" />
+              {/* Bottom bar */}
+              <div className="p-3 border-t border-stone-100 text-center">
+                <button
+                  onClick={() => onToggleAppObscure(false)}
+                  className="w-full py-2 rounded-xl bg-stone-900 text-white text-xs font-bold"
+                >
+                  ホーム画面に戻る（再生再開）
+                </button>
               </div>
             </div>
           )}
 
-          {/* SCREEN OFF / LOCK OVERLAY */}
+          {/* SCREEN OFF (SLEEP) SIMULATION */}
           {state.isScreenOff && (
             <div 
-              onClick={(e) => { e.stopPropagation(); onToggleScreenOff(); }}
-              className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center p-6 text-center select-none"
+              onClick={onToggleScreenOff}
+              className="absolute inset-0 z-30 bg-stone-950 flex flex-col items-center justify-center p-6 text-stone-400 text-center cursor-pointer animate-in fade-in"
             >
-              <div className="text-4xl font-extralight text-slate-500 tracking-wider">
-                {currentTime}
-              </div>
-              <div className="text-xs text-slate-600 mt-1">
-                画面ロック中（タップで点灯）
-              </div>
-              <div className="mt-8 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] text-emerald-400 font-mono">
-                GPU/Decoder: SHUTDOWN (0.0 W)
+              <Moon className="w-10 h-10 text-rose-300 mb-3 animate-pulse" />
+              <div className="text-sm font-bold text-white">画面スリープ中</div>
+              <div className="text-xs text-stone-500 mt-1">動画デコーダー完全休止中 (0mW)</div>
+              <div className="mt-4 text-[11px] px-3 py-1.5 rounded-full bg-stone-900 text-rose-300 border border-stone-800">
+                タップして画面点灯
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Under Phone Live Status Pill */}
-      <div className="mt-3 flex items-center gap-2 text-xs font-mono">
-        <span className="text-slate-400">レンダリング状態:</span>
-        {isActuallyRunning ? (
-          <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            再生稼働中 ({state.targetFps} fps / HW加速)
-          </span>
-        ) : (
-          <span className="flex items-center gap-1.5 text-amber-400 font-medium">
-            <span className="w-2 h-2 rounded-full bg-amber-400" />
-            {state.isScreenOff 
-              ? '画面OFF (完全停止 0mW)' 
-              : state.isAppObscuring 
-              ? 'アプリ前面 (デコーダー休止 0mW)' 
-              : '省電力停止中'}
-          </span>
-        )}
+      {/* Interactive Quick Bar Under Phone */}
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2 max-w-sm">
+        <button
+          onClick={() => setIsLockScreen(!isLockScreen)}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            isLockScreen 
+              ? 'bg-rose-500 text-white shadow-sm' 
+              : 'bg-white text-stone-600 border border-rose-100 hover:bg-rose-50'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          <span>{isLockScreen ? 'ホーム画面へ' : 'ロック画面へ'}</span>
+        </button>
+
+        <button
+          onClick={() => onToggleAppObscure()}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            state.isAppObscuring
+              ? 'bg-emerald-500 text-white shadow-sm'
+              : 'bg-white text-stone-600 border border-rose-100 hover:bg-rose-50'
+          }`}
+        >
+          <EyeOff className="w-3.5 h-3.5" />
+          <span>{state.isAppObscuring ? 'ホームに戻る' : '別アプリを開く(0mW検証)'}</span>
+        </button>
+
+        <button
+          onClick={onToggleScreenOff}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            state.isScreenOff
+              ? 'bg-purple-600 text-white shadow-sm'
+              : 'bg-white text-stone-600 border border-rose-100 hover:bg-rose-50'
+          }`}
+        >
+          <Moon className="w-3.5 h-3.5" />
+          <span>{state.isScreenOff ? '画面点灯' : '画面OFF'}</span>
+        </button>
+
+        <button
+          onClick={onTogglePlay}
+          className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white text-stone-600 border border-rose-100 hover:bg-rose-50 flex items-center gap-1.5"
+        >
+          {state.isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+          <span>{state.isPlaying ? '一時停止' : '再生'}</span>
+        </button>
+      </div>
+
+      <div className="mt-2 text-[11px] text-stone-400 flex items-center gap-1">
+        <Sparkles className="w-3 h-3 text-rose-400" />
+        <span>画面をすばやく2回タップするとトントン一時停止できます</span>
       </div>
     </div>
   );
