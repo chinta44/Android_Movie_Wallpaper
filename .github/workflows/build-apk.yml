@@ -31,24 +31,34 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: 4. APKの自動ビルド (assembleDebug)
-        run: gradle assembleDebug --stacktrace
+      - name: 4. AndroidX設定と環境設定 (gradle.properties)
+        run: |
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "android.nonTransitiveRClass=true" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m" >> gradle.properties
 
-      - name: 5. 生成されたAPKファイルの検索
+      - name: 5. Android SDK ライセンスの自動同意
+        run: |
+          yes | sdkmanager --licenses 2>/dev/null || true
+
+      - name: 6. APKの自動ビルド (assembleDebug)
+        run: gradle assembleDebug -Pandroid.useAndroidX=true --stacktrace
+
+      - name: 7. 生成されたAPKファイルの検索
         id: apk_step
         run: |
           APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
           echo "Found APK at: $APK_FILE"
           echo "apk_path=$APK_FILE" >> $GITHUB_OUTPUT
 
-      - name: 6. GitHub Releases への自動公開
+      - name: 8. GitHub Releases への自動公開
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.apk_step.outputs.apk_path }}
           tag_name: ${{ github.ref_name || 'v1.0.0' }}
           name: "Android_Movie_Wallpaper ${{ github.ref_name || 'v1.0.0' }}"
           body: |
-            ### 📱 Android_Movie_Wallpaper APK (ビルド完了)
+            ### 📱 Android_Movie_Wallpaper APK (自動ビルド完了)
             - 端末内・SDカード内動画対応 (SAF永続権限)
             - 画面非表示時 0mW 休止 & 30fpsリミッター
             - 画面ダブルタップで動画一時停止
