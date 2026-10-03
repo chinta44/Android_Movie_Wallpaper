@@ -1,0 +1,55 @@
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*' # v1.0.0 などのタグがプッシュされたときに実行
+    branches:
+      - main
+  workflow_dispatch: # GitHubのWeb画面から「Run workflow」ボタンで手動実行可能
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: 2. JDK 17 のセットアップ
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: 3. Gradleラッパー実行権限の付与
+        run: chmod +x gradlew || true
+
+      - name: 4. APKの自動ビルド
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: 5. 生成されたAPKファイルの検索
+        id: apk_step
+        run: |
+          APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          echo "apk_path=$APK_FILE" >> $GITHUB_OUTPUT
+
+      - name: 6. GitHub Releases への自動公開
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.apk_step.outputs.apk_path }}
+          tag_name: ${{ github.ref_name || 'v1.0.0' }}
+          name: "Video Live Wallpaper ${{ github.ref_name || 'v1.0.0' }}"
+          body: |
+            ### 📱 Video Live Wallpaper APK
+            - 端末内・SDカード内動画対応 (SAF永続権限)
+            - 画面非表示時 0mW 休止 & 30fpsリミッター
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
