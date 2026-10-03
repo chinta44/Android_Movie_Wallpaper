@@ -44,9 +44,9 @@ jobs:
         with:
           files: ${{ steps.apk_step.outputs.apk_path }}
           tag_name: ${{ github.ref_name || 'v1.0.0' }}
-          name: "Video Live Wallpaper ${{ github.ref_name || 'v1.0.0' }}"
+          name: "Android_Movie_Wallpaper ${{ github.ref_name || 'v1.0.0' }}"
           body: |
-            ### 📱 Video Live Wallpaper APK
+            ### 📱 Android_Movie_Wallpaper APK
             - 端末内・SDカード内動画対応 (SAF永続権限)
             - 画面非表示時 0mW 休止 & 30fpsリミッター
           draft: false
