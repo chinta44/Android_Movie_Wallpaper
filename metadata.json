@@ -1,0 +1,6 @@
+{
+  "name": "Android 動画ライブ壁紙 作成ガイド & 省電力シミュレーター",
+  "description": "Android端末内・SDカード内の動画をホーム画面の動く壁紙に設定する技術解説、完全なKotlin実装コード、およびバッテリー消費を極小化する最適化シミュレーター。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
