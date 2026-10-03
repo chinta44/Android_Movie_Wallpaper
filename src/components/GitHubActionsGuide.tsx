@@ -11,6 +11,7 @@ import {
   Copy, 
   Check, 
   FileCode, 
+  
   FolderTree, 
   HelpCircle, 
   ShieldCheck, 
@@ -223,7 +224,7 @@ export const GitHubActionsGuide: React.FC = () => {
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500 text-slate-950">
                     Latest Release
                   </span>
-                  <span className="font-bold text-white text-sm">Video Live Wallpaper v1.0.0</span>
+                  <span className="font-bold text-white text-sm">Android_Movie_Wallpaper v1.0.0</span>
                 </div>
                 <div className="text-xs text-slate-300 mt-1">
                   GitHub Releases への登録が完了しました！AssetsからAPKを直接端末へダウンロードできます。
@@ -235,11 +236,11 @@ export const GitHubActionsGuide: React.FC = () => {
                   href="#download-sample"
                   onClick={(e) => {
                     e.preventDefault();
-                    const dummyBlob = new Blob(['Simulated Video Live Wallpaper APK binary'], { type: 'application/vnd.android.package-archive' });
+                    const dummyBlob = new Blob(['Simulated Android_Movie_Wallpaper APK binary'], { type: 'application/vnd.android.package-archive' });
                     const url = URL.createObjectURL(dummyBlob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'video-live-wallpaper-v1.0.0.apk';
+                    a.download = 'Android-Movie-wallpaper-v1.0.0.apk';
                     a.click();
                     URL.revokeObjectURL(url);
                   }}
