@@ -21,6 +21,7 @@ import {
   FolderGit2
 } from 'lucide-react';
 import { ANDROID_CODE_FILES } from '../data/androidCodeSnippets';
+import { GitHubDirectUploader } from './GitHubDirectUploader';
 
 export const GitHubActionsGuide: React.FC = () => {
   const [isSimulating, setIsSimulating] = useState(false);
@@ -99,7 +100,10 @@ export const GitHubActionsGuide: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Interactive Pipeline Runner Simulation */}
+      {/* 2. Direct GitHub Uploader Tool */}
+      <GitHubDirectUploader />
+
+      {/* 3. Interactive Pipeline Runner Simulation */}
       <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-5">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
           <div>
